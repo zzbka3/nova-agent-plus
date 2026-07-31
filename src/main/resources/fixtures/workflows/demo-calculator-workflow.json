@@ -1,0 +1,12 @@
+{
+  "id": "demo-calculator-workflow",
+  "version": "1.0",
+  "name": "Demo Calculator Workflow",
+  "nodes": [
+    {"id": "calc", "type": "TOOL", "config": {"toolId": "calculator", "args": {"operator": "+", "a": 1, "b": 2}}},
+    {"id": "end", "type": "END", "config": {}}
+  ],
+  "edges": [
+    {"from": "calc", "to": "end"}
+  ]
+}

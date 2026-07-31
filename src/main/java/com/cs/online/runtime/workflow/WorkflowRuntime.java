@@ -1,6 +1,7 @@
 package com.cs.online.runtime.workflow;
 
 import com.cs.online.context.Context;
+import com.cs.online.context.VariableType;
 import com.cs.online.execution.DefaultExecution;
 import com.cs.online.execution.Execution;
 import com.cs.online.execution.ExecutionStatus;
@@ -22,14 +23,19 @@ import java.util.stream.Collectors;
 
 /**
  * Workflow 不负责思考，只负责按照 DAG 执行：Node -> Edge -> Next Node -> End。
+ * IF 节点支持条件分支（一次只走一条路径），不支持并行 fan-out。
  */
 @Component
 public class WorkflowRuntime implements Runtime {
 
-    private final ExecutorDispatcher dispatcher;
+    private static final String DEFAULT_BRANCH_KEY = "default";
 
-    public WorkflowRuntime(@Lazy ExecutorDispatcher dispatcher) {
+    private final ExecutorDispatcher dispatcher;
+    private final SpelEvaluator spelEvaluator;
+
+    public WorkflowRuntime(@Lazy ExecutorDispatcher dispatcher, SpelEvaluator spelEvaluator) {
         this.dispatcher = dispatcher;
+        this.spelEvaluator = spelEvaluator;
     }
 
     @Override
@@ -43,8 +49,8 @@ public class WorkflowRuntime implements Runtime {
 
         Map<String, Node> nodesById = workflow.nodes().stream()
                 .collect(Collectors.toMap(Node::id, Function.identity()));
-        Map<String, String> nextNodeByFrom = workflow.edges().stream()
-                .collect(Collectors.toMap(Edge::from, Edge::to));
+        Map<String, List<Edge>> edgesByFrom = workflow.edges().stream()
+                .collect(Collectors.groupingBy(Edge::from));
 
         Optional<Node> startNode = workflow.nodes().stream().findFirst();
         if (startNode.isEmpty()) {
@@ -65,6 +71,36 @@ public class WorkflowRuntime implements Runtime {
                 return execution;
             }
 
+            List<Edge> outgoing = edgesByFrom.getOrDefault(current.id(), List.of());
+
+            if (current.type() == NodeType.IF) {
+                String branchKey;
+                try {
+                    Object value = spelEvaluator.evaluate(current.config().get("expression").asText(), context);
+                    branchKey = String.valueOf(value);
+                } catch (Exception e) {
+                    execution.setStatus(ExecutionStatus.FAILED);
+                    execution.setErrorMessage("IF node " + current.id() + " expression evaluation failed: " + e.getMessage());
+                    return execution;
+                }
+
+                Edge chosen = outgoing.stream()
+                        .filter(edge -> branchKey.equals(edge.branchKey()))
+                        .findFirst()
+                        .or(() -> outgoing.stream().filter(edge -> DEFAULT_BRANCH_KEY.equals(edge.branchKey())).findFirst())
+                        .orElse(null);
+
+                if (chosen == null) {
+                    execution.setStatus(ExecutionStatus.FAILED);
+                    execution.setErrorMessage("IF node " + current.id() + " has no edge matching branch '" + branchKey + "' and no default edge");
+                    return execution;
+                }
+
+                context.observation().record("[Workflow:" + workflow.id() + "] node " + current.id() + " branch=" + branchKey + " -> " + chosen.to());
+                current = nodesById.get(chosen.to());
+                continue;
+            }
+
             Execution nodeExecution = runNode(current, context);
             if (nodeExecution.status() != ExecutionStatus.SUCCESS) {
                 execution.setStatus(ExecutionStatus.FAILED);
@@ -72,9 +108,15 @@ public class WorkflowRuntime implements Runtime {
                 return execution;
             }
             lastResult = nodeExecution instanceof DefaultExecution de ? de.getResult() : null;
+            context.variables().set("node:" + current.id(), VariableType.OBJECT, lastResult);
 
-            String nextId = nextNodeByFrom.get(current.id());
-            current = nextId == null ? null : nodesById.get(nextId);
+            if (outgoing.size() > 1) {
+                execution.setStatus(ExecutionStatus.FAILED);
+                execution.setErrorMessage("Node " + current.id() + " has multiple outgoing edges but is not an IF node");
+                return execution;
+            }
+
+            current = outgoing.isEmpty() ? null : nodesById.get(outgoing.get(0).to());
         }
 
         execution.setStatus(ExecutionStatus.SUCCESS);
@@ -87,7 +129,7 @@ public class WorkflowRuntime implements Runtime {
             case TOOL -> {
                 String toolId = node.config().get("toolId").asText();
                 ToolDefinition toolDefinition = new ToolDefinition(toolId, "1.0", toolId, null);
-                context.variables().set("__tool_args__", com.cs.online.context.VariableType.OBJECT, node.config().get("args"));
+                context.variables().set("__tool_args__", VariableType.OBJECT, node.config().get("args"));
                 yield dispatcher.dispatch(toolDefinition, context);
             }
             case AGENT -> {

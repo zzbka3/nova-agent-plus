@@ -1,0 +1,9 @@
+{
+  "id": "demo-calculator-agent",
+  "version": "1.0",
+  "name": "Demo Calculator Agent",
+  "model": "deepseek-v4-pro",
+  "systemPrompt": "You are a helpful agent that can perform arithmetic using the calculator tool when needed.",
+  "tools": ["calculator"],
+  "maxSteps": 5
+}

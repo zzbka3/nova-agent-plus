@@ -1,0 +1,19 @@
+{
+  "id": "if-demo-workflow",
+  "version": "1.0",
+  "name": "IF Demo",
+  "nodes": [
+    {"id": "calc", "type": "TOOL", "config": {"toolId": "calculator", "args": {"operator": "+", "a": 50, "b": 60}}},
+    {"id": "check", "type": "IF", "config": {"expression": "#variables['node:calc'] > 100 ? 'big' : 'small'"}},
+    {"id": "bigBranch", "type": "TOOL", "config": {"toolId": "calculator", "args": {"operator": "*", "a": 2, "b": 2}}},
+    {"id": "smallBranch", "type": "TOOL", "config": {"toolId": "calculator", "args": {"operator": "-", "a": 1, "b": 1}}},
+    {"id": "end", "type": "END", "config": {}}
+  ],
+  "edges": [
+    {"from": "calc", "to": "check"},
+    {"from": "check", "to": "bigBranch", "branchKey": "big"},
+    {"from": "check", "to": "smallBranch", "branchKey": "default"},
+    {"from": "bigBranch", "to": "end"},
+    {"from": "smallBranch", "to": "end"}
+  ]
+}
