@@ -5,16 +5,16 @@ spring:
   application:
     name: nova-agent-plus
   profiles:
-    active: dev
+    active: local
   datasource:
     # TODO: 替换为你本地实际的 MySQL 连接信息
     url: jdbc:mysql://localhost:3306/nova_agent?useSSL=false&serverTimezone=UTC&characterEncoding=utf8
     username: root
-    password: ***
+    password: ----
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 nova-agent:
   model:
     base-url: https://api.deepseek.com
-    api-key: sk-*****
+    api-key: ----
     model-name: deepseek-v4-pro
