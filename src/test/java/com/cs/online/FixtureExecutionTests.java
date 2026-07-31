@@ -1,12 +1,15 @@
 package com.cs.online;
 
 import com.cs.online.context.Context;
+import com.cs.online.demo.CalculatorTool;
 import com.cs.online.execution.Execution;
 import com.cs.online.execution.ExecutionStatus;
 import com.cs.online.fixtures.FixtureLoader;
 import com.cs.online.resource.AgentDefinition;
+import com.cs.online.resource.ToolDefinition;
 import com.cs.online.resource.WorkflowDefinition;
 import com.cs.online.runtime.agent.AgentRuntime;
+import com.cs.online.runtime.tool.ToolDefinitionService;
 import com.cs.online.runtime.workflow.WorkflowRuntime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +32,9 @@ class FixtureExecutionTests {
 
     @Autowired
     private AgentRuntime agentRuntime;
+
+    @Autowired
+    private ToolDefinitionService toolDefinitionService;
 
     @Test
     void loadAllFixturesIntoDatabase() {
@@ -70,5 +76,25 @@ class FixtureExecutionTests {
         Execution execution = agentRuntime.execute(agent, context);
 
         assertThat(execution.status()).isEqualTo(ExecutionStatus.SUCCESS);
+    }
+
+    @Test
+    void calculatorToolDefinitionIsPersistedWithParametersSchema() {
+        // ToolRuntime 应用启动时（DemoResourceInitializer）已经把 CalculatorTool.definition() 落库，
+        // 这里验证元信息确实可以从数据库查到，且带上了参数 schema，而不是只有一个裸的 id。
+        ToolDefinition tool = toolDefinitionService.get(CalculatorTool.ID);
+
+        assertThat(tool).isNotNull();
+        assertThat(tool.name()).isEqualTo("Calculator");
+        assertThat(tool.description()).isNotBlank();
+        assertThat(tool.parametersSchema()).isNotNull();
+        assertThat(tool.parametersSchema().get("required").toString()).contains("operator", "a", "b");
+    }
+
+    @Test
+    void listToolsIncludesCalculator() {
+        var tools = toolDefinitionService.list();
+
+        assertThat(tools).anyMatch(tool -> tool.id().equals(CalculatorTool.ID));
     }
 }

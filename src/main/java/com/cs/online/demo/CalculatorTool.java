@@ -1,9 +1,14 @@
 package com.cs.online.demo;
 
+import com.cs.online.resource.ToolDefinition;
 import com.cs.online.runtime.tool.Tool;
 import com.cs.online.runtime.tool.ToolResult;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Demo Tool：四则运算，用于验证 ToolRuntime / WorkflowRuntime / AgentRuntime 链路。
@@ -14,9 +19,25 @@ public class CalculatorTool implements Tool {
 
     public static final String ID = "calculator";
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     @Override
     public String id() {
         return ID;
+    }
+
+    @Override
+    public ToolDefinition definition() {
+        JsonNode schema = MAPPER.valueToTree(Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "operator", Map.of("type", "string", "description", "运算符：+ - * /"),
+                        "a", Map.of("type", "number", "description", "第一个操作数"),
+                        "b", Map.of("type", "number", "description", "第二个操作数")
+                ),
+                "required", List.of("operator", "a", "b")
+        ));
+        return new ToolDefinition(ID, "1.0", "Calculator", "四则运算工具", schema);
     }
 
     @Override

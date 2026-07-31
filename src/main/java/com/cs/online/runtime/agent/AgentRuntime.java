@@ -81,7 +81,7 @@ public class AgentRuntime implements Runtime {
             }
 
             context.variables().set("__tool_args__", com.cs.online.context.VariableType.OBJECT, args);
-            ToolDefinition toolDefinition = new ToolDefinition(decision.toolId(), "1.0", decision.toolId(), null);
+            ToolDefinition toolDefinition = new ToolDefinition(decision.toolId(), "1.0", decision.toolId(), null, null);
             Execution actionExecution = dispatcher.dispatch(toolDefinition, context);
 
             String observation = actionExecution.status() == ExecutionStatus.SUCCESS

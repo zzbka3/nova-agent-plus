@@ -2,6 +2,8 @@ package com.cs.online.runtime.agent;
 
 import com.cs.online.model.ModelRuntime;
 import com.cs.online.resource.AgentDefinition;
+import com.cs.online.resource.ToolDefinition;
+import com.cs.online.runtime.tool.ToolDefinitionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -11,6 +13,8 @@ import org.springframework.stereotype.Component;
  * 要求模型只回复以下两种格式之一：
  *   ACTION: {"tool": "toolId", "args": {...}}
  *   FINISH: <final answer text>
+ * system prompt 里会把每个可用 tool 的完整参数 schema 拼进去，让模型知道具体要传什么参数，
+ * 而不是只给一个 tool id 列表让模型瞎猜。
  */
 @Component
 public class Planner {
@@ -18,9 +22,11 @@ public class Planner {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final ModelRuntime modelRuntime;
+    private final ToolDefinitionService toolDefinitionService;
 
-    public Planner(ModelRuntime modelRuntime) {
+    public Planner(ModelRuntime modelRuntime, ToolDefinitionService toolDefinitionService) {
         this.modelRuntime = modelRuntime;
+        this.toolDefinitionService = toolDefinitionService;
     }
 
     public PlannerDecision decide(AgentDefinition agent, String taskInput, String observationSoFar) {
@@ -41,9 +47,26 @@ public class Planner {
         sb.append("You are operating under the ReAct protocol. Reply with EXACTLY ONE of the following formats:\n")
                 .append("ACTION: {\"tool\": \"<toolId>\", \"args\": {...}}\n")
                 .append("FINISH: <final answer>\n")
-                .append("Available tools: ").append(agent.tools()).append("\n")
+                .append("Available tools:\n")
+                .append(describeTools(agent))
                 .append("Do not output anything else besides one of these two lines.");
         return sb.toString();
+    }
+
+    private String describeTools(AgentDefinition agent) {
+        if (agent.tools() == null || agent.tools().isEmpty()) {
+            return "(none)\n";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String toolId : agent.tools()) {
+            ToolDefinition definition = toolDefinitionService.get(toolId);
+            if (definition == null) {
+                continue;
+            }
+            sb.append("- ").append(definition.id()).append(": ").append(definition.description()).append("\n")
+                    .append("  Parameters (JSON Schema): ").append(definition.parametersSchema()).append("\n");
+        }
+        return sb.length() == 0 ? "(none)\n" : sb.toString();
     }
 
     private PlannerDecision parse(String raw) {

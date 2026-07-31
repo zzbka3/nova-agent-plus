@@ -128,7 +128,7 @@ public class WorkflowRuntime implements Runtime {
         return switch (node.type()) {
             case TOOL -> {
                 String toolId = node.config().get("toolId").asText();
-                ToolDefinition toolDefinition = new ToolDefinition(toolId, "1.0", toolId, null);
+                ToolDefinition toolDefinition = new ToolDefinition(toolId, "1.0", toolId, null, null);
                 context.variables().set("__tool_args__", VariableType.OBJECT, node.config().get("args"));
                 yield dispatcher.dispatch(toolDefinition, context);
             }
